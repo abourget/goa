@@ -236,6 +236,7 @@ func (g *Generator) generateControllers(verdir string, version *design.APIVersio
 			return err
 		}
 		if len(data.Actions) > 0 {
+			data.Version = version.Version
 			controllersData = append(controllersData, data)
 		}
 		return nil

@@ -73,7 +73,7 @@ type (
 		// NewHTTPRouterHandle returns a httprouter handle from a goa handler.
 		// This function is intended for the controller generated code.
 		// User code should not need to call it directly.
-		NewHTTPRouterHandle(actName string, h Handler) httprouter.Handle
+		NewHTTPRouterHandle(logger log15.Logger, h Handler) httprouter.Handle
 	}
 
 	// Application represents a goa application. At the basic level an application consists of
@@ -96,7 +96,7 @@ type (
 		name         string             // Application name
 		errorHandler ErrorHandler       // Application error handler
 		middleware   []Middleware       // Middleware chain
-		Router       *httprouter.Router // Application router
+		router       *httprouter.Router // Application router
 	}
 
 	// ApplicationController provides the common state and behavior for generated controllers.
@@ -153,7 +153,7 @@ func New(name string) Service {
 		Logger:       Log.New("app", name),
 		name:         name,
 		errorHandler: DefaultErrorHandler,
-		Router:       httprouter.New(),
+		router:       httprouter.New(),
 	}
 }
 
@@ -196,23 +196,25 @@ func (app *Application) SetErrorHandler(handler ErrorHandler) {
 // ListenAndServe starts a HTTP server and sets up a listener on the given host/port.
 func (app *Application) ListenAndServe(addr string) error {
 	app.Info("listen", "addr", addr)
-	return http.ListenAndServe(addr, app.Router)
+	return http.ListenAndServe(addr, app.Router())
 }
 
 // ListenAndServeTLS starts a HTTPS server and sets up a listener on the given host/port.
 func (app *Application) ListenAndServeTLS(addr, certFile, keyFile string) error {
 	app.Info("listen ssl", "addr", addr)
-	return http.ListenAndServeTLS(addr, certFile, keyFile, app.Router)
+	return http.ListenAndServeTLS(addr, certFile, keyFile, app.Router())
 }
 
 // ServeFiles simply delegates to the underlying router.
 func (app *Application) ServeFiles(path string, root http.FileSystem) {
-	app.HTTPHandler().(*httprouter.Router).ServeFiles(path, root)
+	app.Router().ServeFiles(path, root)
 }
 
-// HTTPHandler returns a http.Handler to the service.
-func (app *Application) HTTPHandler() http.Handler {
-	return app.Router
+// Router returns the underlying request router. Note that in general it is not recommended to
+// use the router directly, the best practice consists of defining resources and actions and have
+// the generated code mount request handlers.
+func (app *Application) Router() Router {
+	return
 }
 
 // NewController returns a controller for the given resource. This method is mainly intended for
@@ -260,12 +262,12 @@ func (ctrl *ApplicationController) HandleError(ctx *Context, err error) {
 	}
 }
 
-// NewHTTPRouterHandle returns a httprouter handle from a goa handler. This handle initializes the
+// NewRouterHandle wraps a request handler into a router handle. This handle initializes the
 // request context by loading the request state, invokes the handler and in case of error invokes
 // the controller (if there is one) or application error handler.
 // This function is intended for the controller generated code. User code should not need to call
 // it directly.
-func (ctrl *ApplicationController) NewHTTPRouterHandle(actName string, h Handler) httprouter.Handle {
+func (ctrl *ApplicationController) NewRouterHandle(logger log15.Logger, h Handler) Handle {
 	// Setup middleware outside of closure
 	chain := ctrl.MiddlewareChain()
 	ml := len(chain)
@@ -280,7 +282,6 @@ func (ctrl *ApplicationController) NewHTTPRouterHandle(actName string, h Handler
 	for i := range chain {
 		middleware = chain[ml-i-1](middleware)
 	}
-	logger := ctrl.New("action", actName)
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		// Collect URL and query string parameters
 		params := make(map[string]string, len(p))
