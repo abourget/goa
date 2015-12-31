@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"runtime"
 	"strings"
@@ -142,21 +143,13 @@ func LogRequest() Middleware {
 			startedAt := time.Now()
 			r := ctx.Value(reqKey).(*http.Request)
 			ctx.Info("started", r.Method, r.URL.String())
-			params := ctx.Value(paramKey).(map[string]string)
+			params := ctx.Value(paramsKey).(url.Values)
 			if len(params) > 0 {
 				logCtx := make(log.Ctx, len(params))
 				for k, v := range params {
 					logCtx[k] = interface{}(v)
 				}
 				ctx.Debug("params", logCtx)
-			}
-			query := ctx.Value(queryKey).(map[string][]string)
-			if len(query) > 0 {
-				logCtx := make(log.Ctx, len(query))
-				for k, v := range query {
-					logCtx[k] = interface{}(v)
-				}
-				ctx.Debug("query", logCtx)
 			}
 			payload := ctx.Value(payloadKey)
 			if r.ContentLength > 0 {

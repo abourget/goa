@@ -450,17 +450,16 @@ type {{.Resource}}Controller interface {
 	// template input: *ControllerTemplateData
 	mountT = `
 // Mount{{.Resource}}Controller "mounts" a {{.Resource}} resource controller on the given service.
-func Mount{{.Resource}}Controller(service goa.Service, ctrl {{.Resource}}Controller) {
+func Mount{{.Resource}}Controller(service goa.Service, mux goa.VersionMux, ctrl {{.Resource}}Controller) {
 	var h goa.Handler
-{{$res := .Resource}}{{$ver := .Version}}{{range .Actions}}{{$action := .}}	h = func(c *goa.Context) error {
+{{$res := .Resource}}{{$ver := .Resource.Version}}{{range .Actions}}{{$action := .}}	h = func(c *goa.Context) error {
 		ctx, err := New{{.Context}}(c)
 		if err != nil {
 			return goa.NewBadRequestError(err)
 		}
 		return ctrl.{{.Name}}(ctx)
 	}
-	logger := ctrl.New("action", actName)
-{{range .Routes}}	service.Router("{{$ver}}").Handler("{{.Verb}}", "{{.FullPath}}", ctrl.NewRouterHandle(logger, h))
+{{range .Routes}}	mux.Handle("{{.Verb}}", "{{.FullPath}}", ctrl.HandleFunc("{{$action.Name}}", h))
 	service.Info("mount", "ctrl", "{{$res}}",{{if $ver}} "version", "{{$ver}}",{{end}} "action", "{{$action.Name}}", "route", "{{.Verb}} {{.FullPath}}")
 {{end}}{{end}}}
 `
